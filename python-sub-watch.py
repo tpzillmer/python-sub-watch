@@ -3,99 +3,115 @@ import smtplib
 import threading
 import sys
 
-reddit = praw.Reddit(client_id='KxlxBCK7CFy1TQ',
-                     client_secret=None,
-                     user_agent='email_notification')
+reddit = praw.Reddit(client_id='KxlxBCK7CFy1TQ', client_secret=None, user_agent='email_notification')
 
-def watchSubforKey(subreddit, keyList):
-    currentTitle = ''
-    while(True):
+def watch_sub(sub, key_list):
+    "Retrieves most recent postings in a subreddit and checks if they contain key "
+    
+    current_title = ''
+    while (1):
+        subreddit = reddit.subreddit(sub).new(limit=1)
         for entry in subreddit:
-            title = entry.title.lower()
-            if title != currentTitle:
-                currentTitle = title
-                for keyword in keyList:
-                    if keyword.lower() in title:
-                        try:
-                            message = "A mention of {} has been posted in /r/{}.".format(keyword, sub)
-                            smtp_gmail(username, secondUsername, password, message)
-                        except smtplib.SMTPAuthenticationError:
-                            print("Incorrect username or password for Gmail, or use fot less secure apps is not turned on in Gmail.")
-                            sys.exit()
+            title = entry.title
+            if title != current_title:
+                current_title = title
+                for keyword in key_list:
+                    if keyword.lower() in title.lower():
+                        message = "'{}' has been posted in /r/{}.".format(title, sub)
+                        smtp_gmail(email, message)
+                            
+def get_key_list(sub):
+    "Obtains a list of keys from the user"
+    key_list = []
 
-def smtp_gmail(username, secondUsername, password, message):
-    smtp_server = "smtp.gmail.com:587"
-    server = smtplib.SMTP(smtp_server)
-    server.starttls()
-    server.login(username, password)
-    server.sendmail(username, secondUsername, message)
-    server.quit()
+    key = input("Enter a keyword or phrase you would like to be notified "
+                "about in {}. If you would like to be notified for each post, enter "
+                "'all': ".format(sub))
 
-def getKeyList():
-    keyList = []
-    key = input("Enter a keyword or phrase you would like to watch for in {}: ".format(sub))
     while(len(key) == 0):
-            print("Please do not enter nothing.")
-            key = input("Enter a keyword or phrase you would like to watch for in {}: ".format(sub))
-    keyList.append(key)
+        print("Please do not enter nothing.")
+        key = input("Enter a keyword or phrase you would like to be notified "
+                        "about in {}. If you would like to be notified for each post, enter "
+                        "'all': ".format(sub))
+        
+    if(key == 'all'):
+        key_list.append('')
+        print("reached")
+        return key_list
+    else: key_list.append(key)
 
     key = ''
     while(key.lower() != 'stop'):
-        key = input('Enter an additional keyword or phrase you would like to watch for in {}, otherwise enter "stop": '.format(sub))
+        key = input("Enter an additional keyword or phrase you would like to notified "
+                    "about in {}, otherwise enter 'stop': ".format(sub))
         while(len(key) == 0):
             print("Please do not enter nothing.")
-            key = input('Enter an additional keyword or phrase you would like to watch for in {}, otherwise enter "stop": '.format(sub))
-        if(key.lower()!='no'): keyList.append(key)
+            key = input("Enter an additional keyword or phrase you would like to notified "
+                        "about in {}, otherwise enter 'stop': ".format(sub))
             
-    return keyList
+        if(key.lower()!='stop'): key_list.append(key)
 
+    return key_list
 
+def smtp_gmail(email, message):
+    "Sends notification email using Gmail"
     
+    smtp_server = "smtp.gmail.com:587"
+    server = smtplib.SMTP(smtp_server)
+    server.starttls()
+    server.login("redditpythontest@gmail.com", "***PASSWORD***")
+    server.sendmail("redditpythontest@gmail.com", email, message)
+    server.quit()
 
-if __name__ == "__main__":
-    print('It is reccomended to make a dummy Gmail account for to log in and send in this application. You can use your official email to receive notifications.'
-          ' Remember to turn on the "Use for less secure apps" functionality in the Gmail account.\n')
-    
-    username = input("Please enter your Gmail's username: ")
-    while(1):
-        if('gmail.com' in username): break
-        else: print('Please enter a valid gmail address, including "@gmail.com"')
-            
-    while(1):
-        password = input("Please enter your Gmail's password: ")
-        if(len(password) > 0): break
-        else: print('Please enter a valid password')
-
-    secondUsername = input('If you would like to be notified using the same email, enter "same". Otherwise enter a new email: ')
-    while(1):
-        if(secondUsername.lower() == 'same'):
-            secondUsername = username
-            break
-        if(len(secondUsername) == 0) or ('.com' not in secondUsername and '@' not in secondUsername):
-            secondUsername = input('Please enter a valid email address or enter "same" to use the same email: ')
-        else:
-            break
-
-    while(1):
+def get_sub():
+    "Obtains initial subreddit user wants to watch"
+    do = 1
+    while(do):
+        sub = input("Enter a subreddit you would like to watch: ")
+        subreddit = reddit.subreddit(sub).new(limit=1)
         try:
-            sub = input("Enter a subreddit you would like to watch: ")
-            subreddit = reddit.subreddit(sub).new(limit=1)
-            #for i in subreddit: pass
-            break
+            for i in subreddit: do = 0
         except: print("You entered an invalid subreddit.")
+    return sub
+
+def get_additional_sub():
+    "Obtains additional subreddits user wants to watch"
+    do = 1
+    while(do):
+        sub = input("Enter an additional subreddit you would like to watch, "
+                    "otherwise enter 'stop': ")
+        if sub == 'stop': return 0
+        subreddit = reddit.subreddit(sub).new(limit=1)
+        try:
+            for i in subreddit: do = 0
+        except: print("You entered an invalid subreddit.")
+    return sub
+
+def get_email():
+    "Obtain email the user wants to be notified by"
+    while(1):
+        email = input("Please enter an email you would like to be notified by: ")
+        if('.com' not in email and '@' not in email):
+            print("Please enter a valid email.")
+        else:
+            return email
     
-    keyList = getKeyList()
-        
-    threading.Thread(target=watchSubforKey, args=[subreddit, keyList]).start()
+if __name__ == "__main__":
+    print("It is reccomended to make a dummy Gmail account for to log in and send in " 
+            "this application. You can use your official email to receive notifications. "
+            "Remember to turn on the 'Use for less secure apps' functionality in the Gmail "
+            "account you want to send the notifications in.\n")
+    
+    email = get_email()
+    
+    init_sub = get_sub()
+    init_key_list = get_key_list(init_sub)
+    threading.Thread(target=watch_sub, args=[init_sub, init_key_list]).start()
 
     while(1):
-        while(1):
-            sub = input('Enter an additional subreddit you would like to watch, otherwise enter "stop": ')
-            if sub == 'stop': sys.exit()
-            try:
-                subreddit = reddit.subreddit(sub).new(limit=1)
-                #for i in subreddit: pass
-            except: print("You entered an invalid subreddit.")
-                
-        keyList = getKeyList()
-        threading.Thread(target=watchSubforKey, args=[subreddit, keyList]).start()
+        additional_sub = get_additional_sub()
+        if(additional_sub):
+            additional_key_list = get_key_list(additional_sub)
+            threading.Thread(target=watch_sub, args=[additional_sub, additional_key_list]).start()
+        else: sys.exit()
+
